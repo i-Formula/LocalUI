@@ -1,9 +1,9 @@
-from ctypes import alignment
 from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout, QDialog, QPushButton, QLabel, QLineEdit
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6 import QtCore
 from PySide6.QtCore import QUrl
 import requests
+import ipaddress 
 
 
 class Form(QDialog):
@@ -11,12 +11,9 @@ class Form(QDialog):
     def __init__(self, parent=None):
         super(Form, self).__init__(parent)
         # Create widgets
-        self.cam = QWebEngineView()        
-        #self.cam.setLayout(720, 480)
+        self.cam = QWebEngineView()
         self.iFormulaIP = ''
-    
-        #self.setCentralWidget(self.webEngineView)                
-        #self.webEngineView.page().urlChanged.connect(self.urlChanged)
+
         self.btnLeft = QPushButton('left')
         self.btnLeft.clicked.connect(self.turnLeft)
         self.btnRight = QPushButton('Right')
@@ -24,7 +21,7 @@ class Form(QDialog):
         self.btnForward = QPushButton('Forward')
         self.btnForward.clicked.connect(self.moveForward)
         self.btnBackward = QPushButton('Backward')
-        #self.btnBackward.clicked.connect(self.)
+        self.btnBackward.clicked.connect(self.moveBackward)
         self.btnStop = QPushButton('Stop')
         self.btnStop.clicked.connect(self.stopMove)
         self.lblSpeed = QLabel("Speed")
@@ -33,25 +30,10 @@ class Form(QDialog):
         self.btnLoad = QPushButton("Go")
         self.btnLoad.clicked.connect(self.load)
         self.lblName = QLabel("")
+        self.lblStatus = QLabel("")
 
         # Create layout and add widgets
-        self.moveLayout = QVBoxLayout()
-        self.moveLayout.addWidget(self.btnForward)
-        self.moveLayout.addWidget(self.btnStop)
-        self.moveLayout.addWidget(self.btnBackward)
-
-        self.controlLayout = QHBoxLayout()
-        self.controlLayout.addWidget(self.btnLeft)
-        self.controlLayout.addLayout(self.moveLayout)
-        self.controlLayout.addWidget(self.btnRight)
-        self.controlLayout.addWidget(self.lblSpeed)
-        
-        self.connection = QHBoxLayout()
-        self.connection.addWidget(self.txtUrl)
-        self.connection.addWidget(self.btnLoad)
-        self.connection.addWidget(self.lblName)
-
-        self.mainLayout = QGridLayout()        
+        self.mainLayout = QGridLayout()
         self.mainLayout.addWidget(self.cam, 0, 0, 4, 8)
         self.mainLayout.addWidget(self.txtUrl, 4, 0, 1, 4)
         self.mainLayout.addWidget(self.btnLoad, 4, 5, 1, 1)
@@ -62,35 +44,50 @@ class Form(QDialog):
         self.mainLayout.addWidget(self.btnBackward, 7, 2, 1, 2)
         self.mainLayout.addWidget(self.btnRight, 5, 4, 3, 2)
         self.mainLayout.addWidget(self.lblSpeed,5, 6, 1, 2)
-        #self.mainLayout.addLayout(self.connection,1,0,1,1)
-        #self.mainLayout.addLayout(self.controlLayout,2,0,2,1)
-        # Set dialog layout
+        self.mainLayout.addWidget(self.lblStatus, 8, 0, 1, 8)
+
         self.setLayout(self.mainLayout)
-        #self.cam.load('http://172.18.8.83:12321/camlive')
+        self.lblStatus.setText('Ready')
 
     @QtCore.Slot()
     def load(self):
-        self.iFormulaIP = self.txtUrl.text()
-        self.cam.load(QUrl(f'http://{self.iFormulaIP}:12321/camlive'))
-        #self.cam.page().urlChanged.connect(self.urlChanged)
+    	self.lblStatus.setText(f'Connecting to i-Formula...')
+    	try:
+    	    ip = ipaddress.ip_address(self.txtUrl.text())
+    	    print(f'IP address {self.txtUrl.text()} is valid. The object returned is {ip}')
+    	    response = requests.get(f'http://{self.txtUrl.text()}:12321/')
+    	    self.lblName.setText(f'{response.text}')
+    	    self.iFormulaIP = self.txtUrl.text()
+    	    self.cam.load(QUrl(f'http://{self.iFormulaIP}:12321/camlive'))
+    	    self.lblStatus.setText(f'i-Formula connected')
+    	    print('i-Formula Cam live now~')
+
+    	except ValueError:
+            self.lblStatus.setText(f'IP address {self.txtUrl.text()} is not valid')
+            print(f'IP address {self.txtUrl.text()} is not valid')
 
     @QtCore.Slot()
     def turnLeft(self):
         response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=2")
-        print(response)
+        print(f'{response.status_code}: {response.text}')
 
     @QtCore.Slot()
     def turnRight(self):
         response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=3")
-        print(response)
+        print(f'{response.status_code}: {response.text}')
 
     @QtCore.Slot()
     def moveForward(self):
         response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=1")
-        print(response)
+        print(f'{response.status_code}: {response.text}')
 
     @QtCore.Slot()
     def stopMove(self):
         response = requests.get(f"http://{self.iFormulaIP}:12321/controls")
-        print(response)
+        print(f'{response.status_code}: {response.text}')
+
+    @QtCore.Slot()
+    def moveBackward(self):
+        response = requests.get(f"https://{self.iFormulaIP}:12321/controls?c=4")
+        print(f'{response.status_code}: {response.text}')
 
