@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout, QDialog, QPushButton, QLabel, QLineEdit
+from PySide6.QtWidgets import QComboBox, QGridLayout, QDialog, QPushButton, QLabel, QLineEdit, QVBoxLayout, QRadioButton
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6 import QtCore
 from PySide6.QtCore import QUrl
@@ -14,6 +14,7 @@ class Form(QDialog):
         self.cam = QWebEngineView()
         self.iFormulaIP = ''
 
+        # control widget
         self.btnLeft = QPushButton('left')
         self.btnLeft.clicked.connect(self.turnLeft)
         self.btnRight = QPushButton('Right')
@@ -24,70 +25,116 @@ class Form(QDialog):
         self.btnBackward.clicked.connect(self.moveBackward)
         self.btnStop = QPushButton('Stop')
         self.btnStop.clicked.connect(self.stopMove)
-        self.lblSpeed = QLabel("Speed")
 
-        self.txtUrl = QLineEdit("i-Formula IP Address")
-        self.btnLoad = QPushButton("Go")
+        # Speed controls
+        self.lblSpeed = QLabel('Speed')
+        self.cbxSpeed = QComboBox(self)
+        self.cbxSpeed.addItems(['1', '2', '3', '4', '5'])
+        self.cbxSpeed.currentTextChanged.connect(self.onSpeedChanged)
+        self.btnAuto = QPushButton('Autopilot')
+
+        # Status
+        self.lblLog = QLabel('')
+        self.lblLog.wordWrap = True
+
+        #network connection widget
+        self.txtUrl = QLineEdit()
+        self.txtUrl.setPlaceholderText('Enter IP Address')
+        self.btnLoad = QPushButton('Connect')
         self.btnLoad.clicked.connect(self.load)
-        self.lblName = QLabel("")
-        self.lblStatus = QLabel("")
+        self.lblName = QLabel('')
+        self.btnUnLoad = QPushButton('Disconnect')
+
+        # AI Training Widget
+        self.radFree = QRadioButton('Free')
+        self.radLeft = QRadioButton('Left')
+        self.radRight= QRadioButton('Right')
+        self.radBlock= QRadioButton('Block')
+        self.groupAI = QVBoxLayout()
+        self.groupAI.addWidget(self.radFree)
+        self.groupAI.addWidget(self.radLeft)
+        self.groupAI.addWidget(self.radRight)
+        self.groupAI.addWidget(self.radBlock)
+        self.btnTakeShot = QPushButton('Take a Shot')
+        self.btnSTrainingRemote = QPushButton('Remote Training')
+        self.btnSTrainingLocal = QPushButton('Local Training')
 
         # Create layout and add widgets
         self.mainLayout = QGridLayout()
-        self.mainLayout.addWidget(self.cam, 0, 0, 4, 8)
-        self.mainLayout.addWidget(self.txtUrl, 4, 0, 1, 4)
-        self.mainLayout.addWidget(self.btnLoad, 4, 5, 1, 1)
-        self.mainLayout.addWidget(self.lblName, 4, 6, 1, 2)
-        self.mainLayout.addWidget(self.btnLeft, 5, 0, 3, 2)
-        self.mainLayout.addWidget(self.btnForward, 5, 2, 1, 2)
-        self.mainLayout.addWidget(self.btnStop, 6, 2, 1, 2)
-        self.mainLayout.addWidget(self.btnBackward, 7, 2, 1, 2)
-        self.mainLayout.addWidget(self.btnRight, 5, 4, 3, 2)
-        self.mainLayout.addWidget(self.lblSpeed,5, 6, 1, 2)
-        self.mainLayout.addWidget(self.lblStatus, 8, 0, 1, 8)
+        self.mainLayout.addWidget(self.cam, 0, 0, 10, 10)
+        self.mainLayout.addWidget(self.txtUrl, 10, 0, 1, 3)
+        self.mainLayout.addWidget(self.btnLoad, 10, 3, 1, 1)
+        self.mainLayout.addWidget(self.lblName, 10, 4, 1, 2)
+        self.mainLayout.addWidget(self.btnUnLoad, 10, 6, 1, 1)
+        self.mainLayout.addWidget(self.lblLog, 11, 0, 4, 3)
+
+        self.mainLayout.addWidget(self.btnLeft, 12, 4, 1, 1)
+        self.mainLayout.addWidget(self.btnForward, 11, 5, 1, 1)
+        self.mainLayout.addWidget(self.btnStop, 12, 5, 1, 1)
+        self.mainLayout.addWidget(self.btnBackward, 13, 5, 1, 1)
+        self.mainLayout.addWidget(self.btnRight, 12, 6, 1, 1)
+        
+        self.mainLayout.addWidget(self.lblSpeed, 14, 4, 1, 1)
+        self.mainLayout.addWidget(self.cbxSpeed, 14, 5, 1, 1)
+        self.mainLayout.addWidget(self.btnAuto, 14, 6, 1, 1)
+
+        self.mainLayout.addLayout(self.groupAI, 12, 8, 3, 1)
+        self.mainLayout.addWidget(self.btnTakeShot, 12, 9, 1, 1)
+        self.mainLayout.addWidget(self.btnSTrainingRemote, 13, 9, 1, 1)
+        self.mainLayout.addWidget(self.btnSTrainingLocal, 14, 9, 1, 1)
 
         self.setLayout(self.mainLayout)
-        self.lblStatus.setText('Ready')
+        self.lblLog.setText('Ready')
 
     @QtCore.Slot()
     def load(self):
-    	self.lblStatus.setText(f'Connecting to i-Formula...')
+    	self.lblLog.setText(f'Connecting to i-Formula...\n')
     	try:
     	    ip = ipaddress.ip_address(self.txtUrl.text())
     	    print(f'IP address {self.txtUrl.text()} is valid. The object returned is {ip}')
     	    response = requests.get(f'http://{self.txtUrl.text()}:12321/')
-    	    self.lblName.setText(f'{response.text}')
+    	    self.lblName.setText(f'{response.text}\n')
     	    self.iFormulaIP = self.txtUrl.text()
     	    self.cam.load(QUrl(f'http://{self.iFormulaIP}:12321/camlive'))
-    	    self.lblStatus.setText(f'i-Formula connected')
+    	    self.lblLog.setText(f'{self.lblLog.text()}i-Formula connected')
     	    print('i-Formula Cam live now~')
 
     	except ValueError:
-            self.lblStatus.setText(f'IP address {self.txtUrl.text()} is not valid')
+            self.lblLog.setText(f'{self.lblLog.text()}IP address {self.txtUrl.text()} is not valid')
             print(f'IP address {self.txtUrl.text()} is not valid')
 
     @QtCore.Slot()
     def turnLeft(self):
         response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=2")
         print(f'{response.status_code}: {response.text}')
+        self.lblLog.setText(f'({response.status_code}): {response.text} ')
 
     @QtCore.Slot()
     def turnRight(self):
         response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=3")
         print(f'{response.status_code}: {response.text}')
+        self.lblLog.setText(f'({response.status_code}): {response.text} ')
 
     @QtCore.Slot()
     def moveForward(self):
         response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=1")
         print(f'{response.status_code}: {response.text}')
+        self.lblLog.setText(f'({response.status_code}): {response.text} ')
 
     @QtCore.Slot()
     def stopMove(self):
         response = requests.get(f"http://{self.iFormulaIP}:12321/controls")
         print(f'{response.status_code}: {response.text}')
+        self.lblLog.setText(f'({response.status_code}): {response.text} ')
 
     @QtCore.Slot()
     def moveBackward(self):
-        response = requests.get(f"https://{self.iFormulaIP}:12321/controls?c=4")
+        response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=4")
         print(f'{response.status_code}: {response.text}')
+        self.lblLog.setText(f'({response.status_code}): {response.text} ')
 
+    @QtCore.Slot()
+    def onSpeedChanged(self):
+        response = requests.get(f"http://{self.iFormulaIP}:12321/speed?c={self.cbxSpeed.currentText()}")
+        print(f'{response.status_code}: {response.text}')
+        self.lblLog.setText(f'({response.status_code}): {response.text} ')
