@@ -8,7 +8,7 @@ if __name__ == '__main__':
     # Create and show the form
     form = Form()
     availableGeometry = form.screen().availableGeometry()
-    form.resize(availableGeometry.width()*2/3, availableGeometry.height()*2/3)
+    form.resize(availableGeometry.width()*3/4, availableGeometry.height()*3/4)
     form.setWindowTitle("i-Formula")
     form.show()
     # Run the main Qt loop
