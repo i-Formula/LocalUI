@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QComboBox, QGridLayout, QDialog, QPushButton, QLabel, QLineEdit, QVBoxLayout, QRadioButton
+from PySide6.QtWidgets import QComboBox, QGridLayout, QDialog, QPushButton, QLabel, QLineEdit, QVBoxLayout, QRadioButton, QButtonGroup
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6 import QtCore
 from PySide6.QtCore import QUrl
@@ -55,8 +55,16 @@ class Form(QDialog):
         self.groupAI.addWidget(self.radLeft)
         self.groupAI.addWidget(self.radRight)
         self.groupAI.addWidget(self.radBlock)
+        self.buttongroup1 = QButtonGroup(self)
+        self.buttongroup1.addButton(self.radFree, 1)
+        self.buttongroup1.addButton(self.radLeft, 2)
+        self.buttongroup1.addButton(self.radRight, 3)
+        self.buttongroup1.addButton(self.radBlock, 4)
+        self.buttongroup1.buttonClicked.connect(self.slapshot)
         self.btnTakeShot = QPushButton('Take a Shot')
+        self.btnTakeShot.clicked.connect(self.slapshot)
         self.btnSTrainingRemote = QPushButton('Remote Training')
+        self.btnSTrainingRemote.clicked.connect(self.training)
         self.btnSTrainingLocal = QPushButton('Local Training')
 
         # Create layout and add widgets
@@ -137,4 +145,28 @@ class Form(QDialog):
     def onSpeedChanged(self):
         response = requests.get(f"http://{self.iFormulaIP}:12321/speed?c={self.cbxSpeed.currentText()}")
         print(f'{response.status_code}: {response.text}')
+        self.lblLog.setText(f'({response.status_code}): {response.text} ')
+
+    @QtCore.Slot()
+    def training(self):
+        response = requests.get(f"http://{self.iFormulaIP}:12321/train")
+        print(f'{response.status_code}: {response.text}')
+        self.lblLog.setText(f'({response.status_code}): {response.text} ')
+
+    @QtCore.Slot()
+    def slapshot(self):
+        if self.buttongroup1.checkedId()==1:
+            print('1 checked')
+            response = requests.get(f"http://{self.iFormulaIP}:12321/takesnap?i=1")
+        elif self.buttongroup1.checkedId()==2:
+            print('2 checked')
+            response = requests.get(f"http://{self.iFormulaIP}:12321/takesnap?i=2")
+        elif self.buttongroup1.checkedId()==3:
+            print('3 checked')
+            response = requests.get(f"http://{self.iFormulaIP}:12321/takesnap?i=3")
+        elif self.buttongroup1.checkedId()==4:
+            print('4 checked')
+            response = requests.get(f"http://{self.iFormulaIP}:12321/takesnap?i=4")     
+        else:
+            print('? checked')
         self.lblLog.setText(f'({response.status_code}): {response.text} ')
