@@ -1,9 +1,10 @@
-from PySide6.QtWidgets import QComboBox, QGridLayout, QDialog, QPushButton, QLabel, QLineEdit, QVBoxLayout, QRadioButton, QButtonGroup
+from PySide6.QtWidgets import QComboBox, QGridLayout, QDialog, QPushButton, QLabel, QLineEdit, QVBoxLayout, QRadioButton, QButtonGroup, QCheckBox
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6 import QtCore
 from PySide6.QtCore import QUrl
-import requests
-import ipaddress 
+import requests, ipaddress, time, json, zipfile, os
+from io import BytesIO
+from AITraining import AITraining
 
 
 class Form(QDialog):
@@ -12,6 +13,7 @@ class Form(QDialog):
         super(Form, self).__init__(parent)
         # Create widgets
         self.cam = QWebEngineView()
+        self.cam.setZoomFactor(2.0)
         self.iFormulaIP = ''
 
         # control widget
@@ -29,9 +31,10 @@ class Form(QDialog):
         # Speed controls
         self.lblSpeed = QLabel('Speed')
         self.cbxSpeed = QComboBox(self)
-        self.cbxSpeed.addItems(['1', '2', '3', '4', '5'])
+        self.cbxSpeed.addItems(['0', '4', '5'])
         self.cbxSpeed.currentTextChanged.connect(self.onSpeedChanged)
         self.btnAuto = QPushButton('Autopilot')
+        self.btnAuto.setDisabled(True)
 
         # Status
         self.lblLog = QLabel('')
@@ -43,13 +46,20 @@ class Form(QDialog):
         self.btnLoad = QPushButton('Connect')
         self.btnLoad.clicked.connect(self.load)
         self.lblName = QLabel('')
-        self.btnUnLoad = QPushButton('Disconnect')
+        #self.btnUnLoad = QPushButton('Disconnect')
 
         # AI Training Widget
+        self.chkTrain = QCheckBox('Sampling Mode')
+        self.chkTrain.clicked.connect(self.sample)
+        self.sampling = self.chkTrain.isChecked()
         self.radFree = QRadioButton('Free')
         self.radLeft = QRadioButton('Left')
         self.radRight= QRadioButton('Right')
         self.radBlock= QRadioButton('Block')
+        self.radBlock.setDisabled(True)
+        self.radFree.setDisabled(True)
+        self.radRight.setDisabled(True)
+        self.radLeft.setDisabled(True)
         self.groupAI = QVBoxLayout()
         self.groupAI.addWidget(self.radFree)
         self.groupAI.addWidget(self.radLeft)
@@ -63,9 +73,13 @@ class Form(QDialog):
         self.buttongroup1.buttonClicked.connect(self.slapshot)
         self.btnTakeShot = QPushButton('Take a Shot')
         self.btnTakeShot.clicked.connect(self.slapshot)
-        self.btnSTrainingRemote = QPushButton('Remote Training')
+        self.btnTakeShot.setDisabled(True)
+        self.btnSTrainingRemote = QPushButton('Training on the car')
         self.btnSTrainingRemote.clicked.connect(self.training)
-        self.btnSTrainingLocal = QPushButton('Local Training')
+        self.btnSTrainingRemote.setDisabled(True)
+        self.btnSTrainingLocal = QPushButton('Download and Train')
+        self.btnSTrainingLocal.clicked.connect(self.localTraining)
+        #self.btnSTrainingLocal.setDisabled(True)
 
         # Create layout and add widgets
         self.mainLayout = QGridLayout()
@@ -73,7 +87,7 @@ class Form(QDialog):
         self.mainLayout.addWidget(self.txtUrl, 10, 0, 1, 3)
         self.mainLayout.addWidget(self.btnLoad, 10, 3, 1, 1)
         self.mainLayout.addWidget(self.lblName, 10, 4, 1, 2)
-        self.mainLayout.addWidget(self.btnUnLoad, 10, 6, 1, 1)
+        #self.mainLayout.addWidget(self.btnUnLoad, 10, 6, 1, 1)
         self.mainLayout.addWidget(self.lblLog, 11, 0, 4, 3)
 
         self.mainLayout.addWidget(self.btnLeft, 12, 4, 1, 1)
@@ -84,7 +98,9 @@ class Form(QDialog):
         
         self.mainLayout.addWidget(self.lblSpeed, 14, 4, 1, 1)
         self.mainLayout.addWidget(self.cbxSpeed, 14, 5, 1, 1)
-        self.mainLayout.addWidget(self.btnAuto, 14, 6, 1, 1)
+        #self.mainLayout.addWidget(self.btnAuto, 14, 6, 1, 1)
+        self.mainLayout.addWidget(self.btnAuto, 10, 6, 1, 1)
+        self.mainLayout.addWidget(self.chkTrain, 14, 6, 1, 1)
 
         self.mainLayout.addLayout(self.groupAI, 12, 8, 3, 1)
         self.mainLayout.addWidget(self.btnTakeShot, 12, 9, 1, 1)
@@ -94,52 +110,93 @@ class Form(QDialog):
         self.setLayout(self.mainLayout)
         self.lblLog.setText('Ready')
 
+    def sampleCount(self):
+        response = requests.get(f'http://{self.txtUrl.text()}:12321/samples')
+        jsonValue = response.json()
+        for r in jsonValue:
+            self.lblLog.setText(f'{self.lblLog.text()}\n{r}: {jsonValue[r]}')
+
     @QtCore.Slot()
     def load(self):
-    	self.lblLog.setText(f'Connecting to i-Formula...\n')
-    	try:
-    	    ip = ipaddress.ip_address(self.txtUrl.text())
-    	    print(f'IP address {self.txtUrl.text()} is valid. The object returned is {ip}')
-    	    response = requests.get(f'http://{self.txtUrl.text()}:12321/')
-    	    self.lblName.setText(f'{response.text}\n')
-    	    self.iFormulaIP = self.txtUrl.text()
-    	    self.cam.load(QUrl(f'http://{self.iFormulaIP}:12321/camlive'))
-    	    self.lblLog.setText(f'{self.lblLog.text()}i-Formula connected')
-    	    print('i-Formula Cam live now~')
-
-    	except ValueError:
+        self.lblLog.setText(f'Connecting to i-Formula...\n')
+        try:
+            ip = ipaddress.ip_address(self.txtUrl.text())
+            print(f'IP address {self.txtUrl.text()} is valid. The object returned is {ip}')
+            response = requests.get(f'http://{self.txtUrl.text()}:12321/')
+            self.lblName.setText(f'{response.text}\n')
+            self.iFormulaIP = self.txtUrl.text()
+            self.cam.load(QUrl(f'http://{self.iFormulaIP}:12321/camlive'))
+            self.lblLog.setText(f'{self.lblLog.text()}i-Formula connected\n')
+            print('i-Formula Cam live now~')
+        except ValueError:
             self.lblLog.setText(f'{self.lblLog.text()}IP address {self.txtUrl.text()} is not valid')
             print(f'IP address {self.txtUrl.text()} is not valid')
+        
+        self.sampleCount()
 
     @QtCore.Slot()
-    def turnLeft(self):
+    def turnLeft(self): #2
+        if self.sampling:
+            print('capture left sample')
+            requests.get(f"http://{self.iFormulaIP}:12321/takesnap?i=2")
         response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=2")
         print(f'{response.status_code}: {response.text}')
         self.lblLog.setText(f'({response.status_code}): {response.text} ')
+        self.sampleCount()
 
     @QtCore.Slot()
-    def turnRight(self):
+    def turnRight(self): #3
+        if self.sampling:
+            print('capture right sample')
+            requests.get(f"http://{self.iFormulaIP}:12321/takesnap?i=3")
         response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=3")
         print(f'{response.status_code}: {response.text}')
         self.lblLog.setText(f'({response.status_code}): {response.text} ')
+        self.sampleCount()
 
     @QtCore.Slot()
-    def moveForward(self):
-        response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=1")
-        print(f'{response.status_code}: {response.text}')
+    def moveForward(self): #1
+        print(self.sampling)
+        response =''
+        if self.sampling:
+            print('capture free sample')
+            requests.get(f"http://{self.iFormulaIP}:12321/takesnap?i=1")
+            response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=1")
+            print(f'{response.status_code}: {response.text}')
+            time.sleep(0.1)
+            response = requests.get(f"http://{self.iFormulaIP}:12321/controls")
+            print(f'{response.status_code}: {response.text}')
+        else:
+            response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=1")
+            print(f'{response.status_code}: {response.text}')
         self.lblLog.setText(f'({response.status_code}): {response.text} ')
+        self.sampleCount()
 
     @QtCore.Slot()
-    def stopMove(self):
+    def stopMove(self): 
         response = requests.get(f"http://{self.iFormulaIP}:12321/controls")
         print(f'{response.status_code}: {response.text}')
         self.lblLog.setText(f'({response.status_code}): {response.text} ')
+        self.sampleCount()
 
     @QtCore.Slot()
-    def moveBackward(self):
-        response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=4")
-        print(f'{response.status_code}: {response.text}')
+    def moveBackward(self): #4
+        response = ''
+        if self.sampling:
+            print('capture block sample')
+            response = requests.get(f"http://{self.iFormulaIP}:12321/takesnap?i=4")
+            print(f'{response.status_code}: {response.text}')
+            
+            response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=4")
+            print(f'{response.status_code}: {response.text}')
+            time.sleep(0.1)
+            response = requests.get(f"http://{self.iFormulaIP}:12321/controls")
+            print(f'{response.status_code}: {response.text}')
+        else: 
+            response = requests.get(f"http://{self.iFormulaIP}:12321/controls?c=4")
+            print(f'{response.status_code}: {response.text}')
         self.lblLog.setText(f'({response.status_code}): {response.text} ')
+        self.sampleCount()
 
     @QtCore.Slot()
     def onSpeedChanged(self):
@@ -152,6 +209,25 @@ class Form(QDialog):
         response = requests.get(f"http://{self.iFormulaIP}:12321/train")
         print(f'{response.status_code}: {response.text}')
         self.lblLog.setText(f'({response.status_code}): {response.text} ')
+
+    @QtCore.Slot()
+    def localTraining(self):
+        self.lblLog.setText(f'Preparing to download the files\n')
+        response = requests.get(f"http://{self.iFormulaIP}:12321/download")
+        z= zipfile.ZipFile(BytesIO(response.content))
+        z.extractall(os.getcwd())
+
+        #print(f'{response.status_code}: {response.text}')
+        self.lblLog.setText(f'Samples download completed.  Start training...\n')
+        # Road to AI Training
+        t = AITraining()
+        t.training()
+        self.lblLog.setText(f'Training completed.  Now uploading...\n')
+        # Upload model
+        print(f'Uploading model...')
+        response = requests.post(f"http://{self.iFormulaIP}:12321/upload", files={'model': open('best_steering_model_xy.pth', 'rb')})
+        self.lblLog.setText(f'[{response.status_code}: upload completed]\n')
+        print('Model upload completed...')
 
     @QtCore.Slot()
     def slapshot(self):
@@ -170,3 +246,7 @@ class Form(QDialog):
         else:
             print('? checked')
         self.lblLog.setText(f'({response.status_code}): {response.text} ')
+
+    @QtCore.Slot()
+    def sample(self):
+        self.sampling = self.chkTrain.isChecked()
